@@ -10,6 +10,26 @@
 
 > 当前支持 [unidbg](https://github.com/zhkl0228/unidbg) 输出的 ARM64 指令级 trace。
 
+unidbg的日志格式我增加了计算所有内存读取和写入指令的目标绝对地址，所以大家在使用前需要对uinidbg中打印这些信息，否则格式不太一样可能造成bug，修改点位于文件：`src/main/java/com/github/unidbg/AssemblyCodeDumper.java`的`hook`方法中，这样在内存读写的指令时打印的格式是这样的：
+
+- 内存读
+
+```
+[07:23:05 407][libtiny.so 0x6fc114] [295a69b8] 0x406fc114: "ldr w9, [x17, w9, uxtw #2]" ; mem[READ] abs=0x416885f0 x17=0x416885d4 w9=0x7 => w9=0x88bd0
+```
+
+- 内存写
+
+```
+[07:23:05 408][libtiny.so 0x6f87ac] [69692838] 0x406f87ac: "strb w9, [x11, x8]" ; mem[WRITE] abs=0x410c8bd0 w9=0x63 x11=0x41040000 x8=0x88bd0 => w9=0x63
+```
+
+abs是内存的绝对地址
+
+![image-20260312215546426](docs/images/uidbg-write-read.png)
+
+AssemblyCodeDumper.java的文件我放到项目里了，大家替换到自己的unidbg中即可
+
 ## 特性亮点
 
 - **大规模 Trace 浏览** — 虚拟滚动 + mmap 零拷贝，千万行 trace 流畅浏览，内存占用恒定
