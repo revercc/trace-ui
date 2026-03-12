@@ -10,26 +10,6 @@
 
 > 当前支持 [unidbg](https://github.com/zhkl0228/unidbg) 输出的 ARM64 指令级 trace。
 
-unidbg的日志格式我增加了计算所有内存读取和写入指令的目标绝对地址，所以大家在使用前需要对uinidbg中打印这些信息，否则格式不太一样可能造成bug，修改点位于文件：`src/main/java/com/github/unidbg/AssemblyCodeDumper.java`的`hook`方法中，这样在内存读写的指令时打印的格式是这样的：
-
-- 内存读
-
-```
-[07:23:05 407][libtiny.so 0x6fc114] [295a69b8] 0x406fc114: "ldr w9, [x17, w9, uxtw #2]" ; mem[READ] abs=0x416885f0 x17=0x416885d4 w9=0x7 => w9=0x88bd0
-```
-
-- 内存写
-
-```
-[07:23:05 408][libtiny.so 0x6f87ac] [69692838] 0x406f87ac: "strb w9, [x11, x8]" ; mem[WRITE] abs=0x410c8bd0 w9=0x63 x11=0x41040000 x8=0x88bd0 => w9=0x63
-```
-
-abs是内存的绝对地址
-
-![image-20260312215546426](docs/images/uidbg-write-read.png)
-
-AssemblyCodeDumper.java的文件我放到项目里了，大家替换到自己的unidbg中即可
-
 ## 特性亮点
 
 - **大规模 Trace 浏览** — 虚拟滚动 + mmap 零拷贝，千万行 trace 流畅浏览，内存占用恒定
@@ -39,6 +19,71 @@ AssemblyCodeDumper.java的文件我放到项目里了，大家替换到自己的
 - **多窗口浮动面板** — 搜索、内存、污点状态等面板可独立浮出，支持多文件并行分析
 - **DEF/USE 箭头连线** — 点击寄存器名即可可视化数据定义与使用关系，快速追踪值传播路径
 - **高亮与注释** — 5 色高亮、删除线、隐藏行、行内注释，状态持久化到本地
+
+
+
+## Looking for Contributors
+
+如果你做过逆向分析，大概都经历过这种时刻：
+
+- trace 日志几千万甚至上亿行
+- 在文本里一行一行追数据流
+- 在010editor里密密麻麻的指令日志，眼睛快瞎了
+
+**Trace 是程序最真实的行为，** 但它也是最难分析的东西。
+
+所以我写了这个工具：
+
+> **一个高性能 ARM64 执行 Trace 可视化分析器**
+
+希望在面对 **千万到亿行级指令规模的 trace** 时，不再只能依赖文本一行一行地硬看。
+
+它不仅是一个查看器，也正在逐步加入：
+
+- **脱离Unidbg trace依赖**
+
+- **数据流 / 污点分析**
+- **字符串**
+- **表达式重建**
+- **CFG**
+- **算法识别、循环识别**
+- **生成AI更容易理解的内容格式用于辅助还原**
+- ...
+
+帮助更轻松、更快速地理解程序的执行过程。
+
+我希望有一天，当逆向工程师做trace日志分析时， 它会像 **Frida**、**JADX** 一样自然地被打开。
+
+让 trace 分析从 **眼花缭乱**变成 **专注于理解程序执行逻辑**。
+
+------
+
+### Why Open Source
+
+这样的工具，不可能一个人完成。
+
+我希望把它做成一个真正有生命力的项目，最终成为 **逆向工程师工具链的一部分**。
+
+------
+
+### Who I'm Looking For
+
+如果你：
+
+- 热爱逆向工程
+- 喜欢做工具
+- 对 **trace / VM / 程序分析 / 可视化 / 性能优化** 感兴趣
+- 有时间和精力
+
+欢迎一起把它做成**逆向工程师的必备工具。**
+
+Let's build it together.
+
+联系我vx: landddding
+
+---
+
+
 
 ## 功能详解
 
@@ -168,6 +213,28 @@ AssemblyCodeDumper.java的文件我放到项目里了，大家替换到自己的
 - [Rust](https://rustup.rs/) 1.75+
 - [Node.js](https://nodejs.org/) 18+
 - [Tauri CLI](https://tauri.app/)：`cargo install tauri-cli`
+
+#### Unidbg格式适配说明
+
+unidbg的日志格式我增加了计算所有内存读取和写入指令的目标绝对地址，所以大家在使用前需要对uinidbg中打印这些信息，否则格式不太一样可能造成bug，修改点位于文件：`src/main/java/com/github/unidbg/AssemblyCodeDumper.java`的`hook`方法中，这样在内存读写的指令时打印的格式是这样的：
+
+- 内存读
+
+```
+[07:23:05 407][libtiny.so 0x6fc114] [295a69b8] 0x406fc114: "ldr w9, [x17, w9, uxtw #2]" ; mem[READ] abs=0x416885f0 x17=0x416885d4 w9=0x7 => w9=0x88bd0
+```
+
+- 内存写
+
+```
+[07:23:05 408][libtiny.so 0x6f87ac] [69692838] 0x406f87ac: "strb w9, [x11, x8]" ; mem[WRITE] abs=0x410c8bd0 w9=0x63 x11=0x41040000 x8=0x88bd0 => w9=0x63
+```
+
+abs是内存的绝对地址
+
+![image-20260312215546426](docs/images/uidbg-write-read.png)
+
+`AssemblyCodeDumper.java`文件我放到项目里了，大家替换到自己的unidbg中即可
 
 ### 开发模式
 
