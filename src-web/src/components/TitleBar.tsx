@@ -26,6 +26,10 @@ interface Props {
   preferences: Preferences;
   onUpdatePreferences: (updates: Partial<Preferences>) => void;
   onTaintAnalysis: () => void;
+  onScanStrings: () => void;
+  hasStringIndex: boolean;
+  stringsScanning: boolean;
+  isPhase2Ready: boolean;
   onSaveTaintResults: () => void;
   // Highlight & Hide
   onHighlight: (color: string) => void;
@@ -44,7 +48,7 @@ interface Props {
   regSelected?: boolean;
 }
 
-export default function TitleBar({ onOpenFile, onCloseFile, onRebuildIndex, onSearch, isLoaded, recentFiles, onRemoveRecent, onGoBack, onGoForward, preferences, onUpdatePreferences, onTaintAnalysis, onSaveTaintResults, onHighlight, onStrikethrough, onResetHighlight, onHide, sliceActive, sliceFilterMode, sliceInfo, onTaintFilterModeChange, onTaintClear, onTaintGoToSource, onTaintReconfigure, onClearCache, regSelected }: Props) {
+export default function TitleBar({ onOpenFile, onCloseFile, onRebuildIndex, onSearch, isLoaded, recentFiles, onRemoveRecent, onGoBack, onGoForward, preferences, onUpdatePreferences, onTaintAnalysis, onScanStrings, hasStringIndex, stringsScanning, isPhase2Ready, onSaveTaintResults, onHighlight, onStrikethrough, onResetHighlight, onHide, sliceActive, sliceFilterMode, sliceInfo, onTaintFilterModeChange, onTaintClear, onTaintGoToSource, onTaintReconfigure, onClearCache, regSelected }: Props) {
   const hasSelectedSeq = useHasSelectedSeq();
   const canGoBack = useCanGoBack();
   const canGoForward = useCanGoForward();
@@ -70,6 +74,7 @@ export default function TitleBar({ onOpenFile, onCloseFile, onRebuildIndex, onSe
   const [showPrefs, setShowPrefs] = useState(false);
   const [showRebuildConfirm, setShowRebuildConfirm] = useState(false);
   const [showClearCacheConfirm, setShowClearCacheConfirm] = useState(false);
+  const [showScanStringsConfirm, setShowScanStringsConfirm] = useState(false);
   const [recentHover, setRecentHover] = useState(false);
   const [highlightHover, setHighlightHover] = useState(false);
   const [recentCtxMenu, setRecentCtxMenu] = useState<{ path: string; x: number; y: number } | null>(null);
@@ -270,6 +275,11 @@ export default function TitleBar({ onOpenFile, onCloseFile, onRebuildIndex, onSe
         {/* Analysis 下拉菜单 */}
         <MenuDropdown label="Analysis" minWidth={200}>
           <MenuItem label="Taint Analysis..." disabled={!hasSelectedSeq} onClick={onTaintAnalysis} />
+          <MenuItem
+              label={hasStringIndex ? "Rescan Strings" : "Scan Strings"}
+              disabled={!isLoaded || !isPhase2Ready || stringsScanning}
+              onClick={() => setShowScanStringsConfirm(true)}
+          />
           <MenuSeparator />
           <MenuItem label="Rebuild Index" disabled={!isLoaded} onClick={() => setShowRebuildConfirm(true)} />
         </MenuDropdown>
@@ -486,6 +496,19 @@ export default function TitleBar({ onOpenFile, onCloseFile, onRebuildIndex, onSe
           minWidth={360}
           onConfirm={async () => { setShowClearCacheConfirm(false); try { await invoke("clear_all_cache"); onClearCache?.(); } catch (e) { console.error("clear cache failed:", e); } }}
           onCancel={() => setShowClearCacheConfirm(false)}
+        />
+      )}
+
+      {/* Scan Strings 确认对话框 */}
+      {showScanStringsConfirm && (
+        <ConfirmDialog
+            title="Scan Strings"
+            message="Scan memory writes to extract strings? This may take a moment for large traces."
+            confirmText="Scan"
+            cancelText="Cancel"
+            minWidth={360}
+            onConfirm={() => { setShowScanStringsConfirm(false); onScanStrings(); }}
+            onCancel={() => setShowScanStringsConfirm(false)}
         />
       )}
 
