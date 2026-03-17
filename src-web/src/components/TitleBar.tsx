@@ -522,7 +522,7 @@ export default function TitleBar({ onOpenFile, onCloseFile, onRebuildIndex, onSe
                 Trace UI
               </div>
               <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 16 }}>
-                v0.3.0
+                v0.4.0
               </div>
               <div style={{ fontSize: 13, color: "var(--text-primary)", marginBottom: 16 }}>
                 ARM64 Trace Visual Analyzer
