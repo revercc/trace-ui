@@ -14,9 +14,10 @@ interface Props {
   sessionId: string | null;
   isPhase2Ready: boolean;
   onJumpToSeq: (seq: number) => void;
+  stringsScanning?: boolean;
 }
 
-export default function StringsPanel({ sessionId, isPhase2Ready, onJumpToSeq }: Props) {
+export default function StringsPanel({ sessionId, isPhase2Ready, onJumpToSeq, stringsScanning }: Props) {
   const [strings, setStrings] = useState<StringRecordDto[]>([]);
   const [total, setTotal] = useState(0);
   const [minLen, setMinLen] = useState(4);
@@ -61,6 +62,15 @@ export default function StringsPanel({ sessionId, isPhase2Ready, onJumpToSeq }: 
   useEffect(() => {
     loadStrings(0, true);
   }, [loadStrings]);
+
+  // ── scanning 结束后自动刷新 ──
+  const prevScanningRef = useRef(false);
+  useEffect(() => {
+    if (prevScanningRef.current && !stringsScanning) {
+      loadStrings(0, true);
+    }
+    prevScanningRef.current = !!stringsScanning;
+  }, [stringsScanning, loadStrings]);
 
   // ── 搜索 debounce ──
   const [searchInput, setSearchInput] = useState("");
@@ -279,6 +289,18 @@ export default function StringsPanel({ sessionId, isPhase2Ready, onJumpToSeq }: 
           fontSize: 11, color: "var(--text-secondary)",
         }}>
           Loading...
+        </div>
+      )}
+
+      {stringsScanning && (
+        <div style={{
+          padding: "8px 12px",
+          fontSize: 11,
+          color: "var(--text-secondary)",
+          textAlign: "center",
+          borderTop: "1px solid var(--border-color)",
+        }}>
+          Scanning strings...
         </div>
       )}
 

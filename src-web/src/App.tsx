@@ -1004,6 +1004,7 @@ function App() {
                 sliceActive={slice.sliceActive}
                 sliceInfo={slice.sliceInfo}
                 sliceFromSpecs={slice.sliceFromSpecs}
+                stringsScanning={stringsScanningSessionId === activeSessionId}
               />
             </Panel>
           </Group>

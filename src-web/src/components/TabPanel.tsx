@@ -32,6 +32,7 @@ interface Props {
   sliceActive: boolean;
   sliceInfo: SliceResult | null;
   sliceFromSpecs: string[];
+  stringsScanning?: boolean;
 }
 
 export default function TabPanel({
@@ -39,6 +40,7 @@ export default function TabPanel({
   isPhase2Ready,
   floatedPanels, onFloat, sessionId,
   sliceActive, sliceInfo, sliceFromSpecs,
+  stringsScanning,
 }: Props) {
   const [active, setActive] = useState<TabName>("Memory");
   const changesCol = useResizableColumn(Math.min(300, Math.round(window.innerWidth * 0.2)));
@@ -194,6 +196,7 @@ export default function TabPanel({
           sessionId={sessionId}
           isPhase2Ready={isPhase2Ready}
           onJumpToSeq={onJumpToSeq}
+          stringsScanning={stringsScanning}
         />
       </div>
 
