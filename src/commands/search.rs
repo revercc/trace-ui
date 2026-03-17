@@ -64,12 +64,13 @@ pub async fn search_trace(
     let mode = parse_search_mode(&request.query)?;
     let max_results = request.max_results;
 
-    let (mmap_arc, total_lines) = {
+    let (mmap_arc, total_lines, trace_format) = {
         let sessions = state.sessions.read().map_err(|e| e.to_string())?;
         let session = sessions.get(&session_id).ok_or_else(|| format!("Session {} 不存在", session_id))?;
         (
             session.mmap.clone(),
             session.line_index.as_ref().map(|li| li.total_lines()).unwrap_or(0),
+            session.trace_format,
         )
     };
 
@@ -96,7 +97,11 @@ pub async fn search_trace(
             if is_match {
                 total_matches += 1;
                 if matches.len() < max_results as usize {
-                    if let Some(parsed) = crate::commands::browse::parse_trace_line(seq, line) {
+                    let parsed = match trace_format {
+                    crate::taint::types::TraceFormat::Unidbg => crate::commands::browse::parse_trace_line(seq, line),
+                    crate::taint::types::TraceFormat::Gumtrace => crate::commands::browse::parse_trace_line_gumtrace(seq, line),
+                };
+                if let Some(parsed) = parsed {
                         matches.push(SearchMatch {
                             seq: parsed.seq,
                             address: parsed.address,
