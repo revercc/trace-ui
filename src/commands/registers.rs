@@ -67,8 +67,13 @@ pub fn get_registers_at(session_id: String, seq: u32, state: State<'_, AppState>
     }
 
     // PC = 当前行的指令地址 + 提取当前行被修改的寄存器名
+    let format = session.trace_format;
     if let Some(raw) = line_index.get_line(&session.mmap, seq) {
-        if let Some(parsed) = crate::commands::browse::parse_trace_line(seq, raw) {
+        let parsed = match format {
+            crate::taint::types::TraceFormat::Unidbg => crate::commands::browse::parse_trace_line(seq, raw),
+            crate::taint::types::TraceFormat::Gumtrace => crate::commands::browse::parse_trace_line_gumtrace(seq, raw),
+        };
+        if let Some(parsed) = parsed {
             let pc_display = if let Some(hex_str) = parsed.address.strip_prefix("0x")
                 .or_else(|| parsed.address.strip_prefix("0X"))
             {

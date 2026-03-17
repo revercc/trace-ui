@@ -1888,7 +1888,7 @@ export default function TraceTable({
           const ciX = curX + gap;
           ctx.font = FONT_ITALIC;
           ctx.fillStyle = ci.is_jni ? COLORS.callInfoJni : COLORS.callInfoNormal;
-          const ciText = ci.summary;
+          const ciText = ci.summary.length > 80 ? ci.summary.slice(0, 80) + "..." : ci.summary;
           const maxCiChars = Math.floor((canvasSize.width - ciX - RIGHT_GUTTER) / charW);
           const displayText = ciText.length > maxCiChars && maxCiChars > 1
             ? ciText.slice(0, maxCiChars - 1) + "\u2026"
@@ -2625,13 +2625,16 @@ export default function TraceTable({
               borderRadius: 4,
               boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
               padding: "8px 12px",
+              minWidth: 520,
+              maxWidth: 620,
               maxHeight: 300,
               overflow: "auto",
               zIndex: 10000,
               fontSize: 12,
               fontFamily: '"JetBrains Mono", "Fira Code", monospace',
               color: "var(--text-primary, #abb2bf)",
-              whiteSpace: "pre",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-all",
             }}
             onMouseEnter={() => {
               callInfoHoveredRef.current = true;

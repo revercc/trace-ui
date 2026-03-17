@@ -188,6 +188,44 @@ pub fn update_reg_values(values: &mut [u64; RegId::COUNT], line: &str) {
     if let Some(arrow_pos) = line.find(" => ").or_else(|| line.find(" -> ")) {
         update_reg_values_at(values, line, arrow_pos);
     }
+    // gumtrace: "msr nzcv, xN" 不会在 -> 后输出 nzcv=，需要从源寄存器值推断
+    infer_nzcv_from_msr(values, line);
+}
+
+/// 检测 "msr nzcv, xN" 指令，从分号后的寄存器值区域提取源寄存器值来推断 nzcv
+fn infer_nzcv_from_msr(values: &mut [u64; RegId::COUNT], line: &str) {
+    // 快速检查：行中必须包含 "msr nzcv"
+    let msr_pos = match line.find("msr nzcv, ") {
+        Some(p) => p,
+        None => return,
+    };
+    // 提取源寄存器名：msr nzcv, xN
+    let after_comma = &line[msr_pos + 10..]; // skip "msr nzcv, "
+    let reg_end = after_comma.find(|c: char| !c.is_ascii_alphanumeric())
+        .unwrap_or(after_comma.len());
+    let src_reg_name = &after_comma[..reg_end];
+    if let Some(src_reg) = parse_reg(src_reg_name) {
+        // 从分号后的标注区域查找 "xN=0x..." 值
+        if let Some(semi_pos) = line.find(';') {
+            let annot = &line[semi_pos..];
+            let pattern = format!("{}=0x", src_reg_name);
+            if let Some(val_pos) = annot.find(&pattern) {
+                let hex_start = val_pos + pattern.len();
+                let hex_end = annot[hex_start..].find(|c: char| !c.is_ascii_hexdigit())
+                    .map(|p| hex_start + p)
+                    .unwrap_or(annot.len());
+                if let Ok(val) = u64::from_str_radix(&annot[hex_start..hex_end], 16) {
+                    values[RegId::NZCV.0 as usize] = val;
+                    return;
+                }
+            }
+        }
+        // 回退：如果源寄存器已有已知值，直接使用
+        let src_val = values[src_reg.0 as usize];
+        if src_val != u64::MAX {
+            values[RegId::NZCV.0 as usize] = src_val;
+        }
+    }
 }
 
 /// 从已知的箭头位置提取寄存器变更（避免重复搜索 " => "）

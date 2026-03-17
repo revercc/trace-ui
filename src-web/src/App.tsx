@@ -966,7 +966,7 @@ function App() {
                         fontSize: "var(--font-size-sm)",
                       }}
                     >
-                      {tab === "tree" ? "调用树" : "函数列表"}
+                      {tab === "tree" ? "Call Tree" : "Functions"}
                     </button>
                   ))}
                 </div>

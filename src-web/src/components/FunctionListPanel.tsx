@@ -32,6 +32,7 @@ export default function FunctionListPanel({ sessionId, onJumpToSeq }: Props) {
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [selectedSeq, setSelectedSeq] = useState<number | null>(null);
   const parentRef = useRef<HTMLDivElement>(null);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -133,7 +134,7 @@ export default function FunctionListPanel({ sessionId, onJumpToSeq }: Props) {
   const virtualizer = useVirtualizerNoSync({
     count: rows.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 26,
+    estimateSize: () => 22,
     overscan: 10,
   });
 
@@ -168,7 +169,7 @@ export default function FunctionListPanel({ sessionId, onJumpToSeq }: Props) {
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", background: "var(--bg-primary)" }}>
       {/* Search box */}
-      <div style={{ padding: "4px 6px", borderBottom: "1px solid var(--border-color)", flexShrink: 0 }}>
+      <div style={{ padding: "4px 6px", flexShrink: 0 }}>
         <div ref={searchWrapperRef} style={{ position: "relative" }}>
           <input
             type="text"
@@ -179,8 +180,8 @@ export default function FunctionListPanel({ sessionId, onJumpToSeq }: Props) {
             style={{
               width: "100%",
               padding: "3px 24px 3px 6px",
-              background: "var(--bg-input)",
-              border: "1px solid var(--border-color)",
+              background: "var(--bg-secondary)",
+              border: "none",
               borderRadius: 3,
               color: "var(--text-primary)",
               fontSize: "var(--font-size-sm)",
@@ -248,7 +249,7 @@ export default function FunctionListPanel({ sessionId, onJumpToSeq }: Props) {
       </div>
 
       {/* Filter buttons */}
-      <div style={{ display: "flex", gap: 2, padding: "3px 6px", borderBottom: "1px solid var(--border-color)", flexShrink: 0 }}>
+      <div style={{ display: "flex", gap: 2, padding: "3px 6px", flexShrink: 0 }}>
         {(["all", "syscall", "jni"] as FilterType[]).map(f => (
           <button
             key={f}
@@ -256,9 +257,9 @@ export default function FunctionListPanel({ sessionId, onJumpToSeq }: Props) {
             style={{
               flex: 1,
               padding: "2px 0",
-              background: filter === f ? "var(--btn-primary)" : "transparent",
-              color: filter === f ? "#fff" : "var(--text-secondary)",
-              border: filter === f ? "none" : "1px solid var(--border-color)",
+              background: filter === f ? "var(--bg-selected)" : "transparent",
+              color: filter === f ? "var(--text-primary)" : "var(--text-secondary)",
+              border: "none",
               borderRadius: 3,
               fontSize: "var(--font-size-sm)",
               fontFamily: "var(--font-mono)",
@@ -268,6 +269,14 @@ export default function FunctionListPanel({ sessionId, onJumpToSeq }: Props) {
             {f === "all" ? "All" : f === "syscall" ? "Syscall" : "JNI"}
           </button>
         ))}
+      </div>
+
+      {/* Header */}
+      <div style={{
+        color: "var(--text-secondary)", fontSize: 11,
+        padding: "4px 8px 3px", borderBottom: "1px solid var(--border-color)", flexShrink: 0,
+      }}>
+        {filtered.length} functions, {filteredCalls} calls
       </div>
 
       {/* Virtual list */}
@@ -289,16 +298,16 @@ export default function FunctionListPanel({ sessionId, onJumpToSeq }: Props) {
                     height: vItem.size,
                     display: "flex",
                     alignItems: "center",
-                    padding: "0 6px",
+                    padding: "0 8px",
                     cursor: "pointer",
-                    borderBottom: "1px solid var(--border-color)",
-                    background: "var(--bg-secondary)",
-                    fontSize: "var(--font-size-sm)",
+                    fontSize: 12,
                     userSelect: "none",
                   }}
                   onClick={() => toggleExpand(entry.func_name)}
+                  onMouseEnter={e => (e.currentTarget.style.background = "var(--bg-row-odd)")}
+                  onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
                 >
-                  <span style={{ width: 16, flexShrink: 0, color: "var(--text-secondary)" }}>
+                  <span style={{ width: 12, textAlign: "center", flexShrink: 0, color: "var(--text-secondary)", fontSize: 10 }}>
                     {isExpanded ? "\u25BC" : "\u25B6"}
                   </span>
                   <span style={{
@@ -334,14 +343,14 @@ export default function FunctionListPanel({ sessionId, onJumpToSeq }: Props) {
                     height: vItem.size,
                     display: "flex",
                     alignItems: "center",
-                    padding: "0 6px 0 22px",
+                    padding: "0 8px 0 28px",
                     cursor: "pointer",
-                    borderBottom: "1px solid var(--border-color)",
-                    fontSize: "var(--font-size-sm)",
+                    fontSize: 12,
+                    background: selectedSeq === row.seq ? "var(--bg-selected)" : "transparent",
                   }}
-                  onClick={() => onJumpToSeq(row.seq)}
-                  onMouseEnter={e => (e.currentTarget.style.background = "var(--bg-selected)")}
-                  onMouseLeave={e => (e.currentTarget.style.background = "")}
+                  onClick={() => { setSelectedSeq(row.seq); onJumpToSeq(row.seq); }}
+                  onMouseEnter={e => { if (selectedSeq !== row.seq) e.currentTarget.style.background = "var(--bg-row-odd)"; }}
+                  onMouseLeave={e => { if (selectedSeq !== row.seq) e.currentTarget.style.background = "transparent"; }}
                 >
                   <span style={{ color: "var(--text-address)", marginRight: 8, flexShrink: 0 }}>
                     #{row.seq}
@@ -361,17 +370,6 @@ export default function FunctionListPanel({ sessionId, onJumpToSeq }: Props) {
         </div>
       </div>
 
-      {/* Status bar */}
-      <div style={{
-        padding: "3px 8px",
-        borderTop: "1px solid var(--border-color)",
-        color: "var(--text-secondary)",
-        fontSize: 11,
-        flexShrink: 0,
-        background: "var(--bg-secondary)",
-      }}>
-        {filtered.length} functions, {filteredCalls} calls
-      </div>
     </div>
   );
 }
