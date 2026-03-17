@@ -160,8 +160,13 @@ create_macos_app() {
         cp -f "icons/icon.icns" "$app_dir/Contents/Resources/icon.icns"
     fi
 
+    # 从 tauri.conf.json 读取版本号
+    local app_version
+    app_version=$(grep '"version"' tauri.conf.json | head -1 | sed 's/.*"\([0-9][0-9.]*\)".*/\1/')
+    info "App version: $app_version"
+
     # 生成 Info.plist
-    cat > "$app_dir/Contents/Info.plist" << 'PLIST'
+    cat > "$app_dir/Contents/Info.plist" << PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -175,9 +180,9 @@ create_macos_app() {
     <key>CFBundleDisplayName</key>
     <string>Trace UI</string>
     <key>CFBundleVersion</key>
-    <string>0.1.0</string>
+    <string>${app_version}</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.1.0</string>
+    <string>${app_version}</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleIconFile</key>

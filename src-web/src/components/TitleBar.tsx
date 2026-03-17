@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { openUrl, openPath } from "@tauri-apps/plugin-opener";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getVersion } from "@tauri-apps/api/app";
 import WindowControls from "./WindowControls";
 import ConfirmDialog from "./ConfirmDialog";
 import PreferencesDialog from "./PreferencesDialog";
@@ -71,6 +72,8 @@ export default function TitleBar({ onOpenFile, onCloseFile, onRebuildIndex, onSe
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [searchInput, setSearchInput] = useState("");
   const [showAbout, setShowAbout] = useState(false);
+  const [appVersion, setAppVersion] = useState("");
+  useEffect(() => { getVersion().then(setAppVersion).catch(() => {}); }, []);
   const [showPrefs, setShowPrefs] = useState(false);
   const [showRebuildConfirm, setShowRebuildConfirm] = useState(false);
   const [showClearCacheConfirm, setShowClearCacheConfirm] = useState(false);
@@ -622,7 +625,7 @@ export default function TitleBar({ onOpenFile, onCloseFile, onRebuildIndex, onSe
                 Trace UI
               </div>
               <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 16 }}>
-                v0.4.0
+                v{appVersion || "..."}
               </div>
               <div style={{ fontSize: 13, color: "var(--text-primary)", marginBottom: 16 }}>
                 ARM64 Trace Visual Analyzer
