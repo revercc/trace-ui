@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { useVirtualizerNoSync } from "../hooks/useVirtualizerNoSync";
 import type { MemorySnapshot, TraceLine } from "../types/trace";
 import { useSelectedSeq } from "../stores/selectedSeqStore";
@@ -115,6 +116,20 @@ export default function MemoryPanel({ selectedSeq: selectedSeqProp, isPhase2Read
       setAutoTrack(true);
     }
   }, [resetKey]);
+
+  // View in Memory：外部指定地址时直接跳转，关闭 autoTrack
+  useEffect(() => {
+    const unlisten = listen<{ addr: string }>("action:view-in-memory", (e) => {
+      const raw = e.payload.addr.replace(/^0x/i, "");
+      const num = parseInt(raw, 16);
+      if (isNaN(num)) return;
+      const aligned = num - (num % 16);
+      setAutoTrack(false);
+      setCurrentAddr(`0x${aligned.toString(16)}`);
+      setInputAddr(e.payload.addr);
+    });
+    return () => { unlisten.then(fn => fn()); };
+  }, []);
 
   // auto-track 时更新 currentAddr，让访问地址出现在第一行
   useEffect(() => {

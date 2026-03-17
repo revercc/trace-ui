@@ -1,4 +1,4 @@
-import { useRef, useEffect, type ReactNode } from "react";
+import { useRef, useEffect, useState, useLayoutEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 interface ContextMenuProps {
@@ -12,6 +12,7 @@ interface ContextMenuProps {
 /** 统一风格的右键上下文菜单 */
 export default function ContextMenu({ x, y, onClose, children, minWidth = 180 }: ContextMenuProps) {
   const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ left: x, top: y });
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -21,11 +22,21 @@ export default function ContextMenu({ x, y, onClose, children, minWidth = 180 }:
     return () => document.removeEventListener("mousedown", handler);
   }, [onClose]);
 
-  // 防止菜单超出视口
+  // 渲染后测量实际尺寸，确保不超出视口
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    setPos({
+      left: Math.min(x, window.innerWidth - rect.width - 8),
+      top: Math.min(y, window.innerHeight - rect.height - 8),
+    });
+  }, [x, y]);
+
   const style: React.CSSProperties = {
     position: "fixed",
-    left: Math.min(x, window.innerWidth - minWidth - 8),
-    top: Math.min(y, window.innerHeight - 100),
+    left: pos.left,
+    top: pos.top,
     background: "var(--bg-dialog)",
     border: "1px solid var(--border-color)",
     borderRadius: 6,

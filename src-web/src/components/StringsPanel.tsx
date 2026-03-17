@@ -1,7 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { emit, emitTo, listen } from "@tauri-apps/api/event";
+import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { useVirtualizerNoSync } from "../hooks/useVirtualizerNoSync";
+import ContextMenu, { ContextMenuItem } from "./ContextMenu";
 import type { StringRecordDto, StringsResult, StringXRef } from "../types/trace";
+
 
 const PAGE_SIZE = 500;
 const ROW_HEIGHT = 22;
@@ -20,8 +24,6 @@ export default function StringsPanel({ sessionId, isPhase2Ready, onJumpToSeq }: 
   const [loading, setLoading] = useState(false);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; record: StringRecordDto } | null>(null);
-  const [xrefs, setXrefs] = useState<{ record: StringRecordDto; items: StringXRef[] } | null>(null);
-  const [detail, setDetail] = useState<StringRecordDto | null>(null);
 
   const parentRef = useRef<HTMLDivElement>(null);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -93,27 +95,22 @@ export default function StringsPanel({ sessionId, isPhase2Ready, onJumpToSeq }: 
     }
   }, [lastVirtualItemIndex, strings.length, total, loading, loadStrings]);
 
-  // ── 点击行 ──
+  // ── 点击行：选中 + 跳转 trace 表 ──
   const handleRowClick = useCallback((record: StringRecordDto) => {
     setSelectedIdx(record.idx);
     onJumpToSeq(record.seq);
   }, [onJumpToSeq]);
 
-  // ── 双击行弹出详情 ──
+  // ── 双击行跳转到 trace 表对应汇编指令行 ──
   const handleRowDoubleClick = useCallback((record: StringRecordDto) => {
-    setDetail(record);
-  }, []);
+    onJumpToSeq(record.seq);
+  }, [onJumpToSeq]);
 
-  // ── 右键菜单 ──
+  // ── 右键菜单（同时选中该行） ──
   const handleContextMenu = useCallback((e: React.MouseEvent, record: StringRecordDto) => {
     e.preventDefault();
+    setSelectedIdx(record.idx);
     setContextMenu({ x: e.clientX, y: e.clientY, record });
-  }, []);
-
-  useEffect(() => {
-    const close = () => setContextMenu(null);
-    window.addEventListener("click", close);
-    return () => window.removeEventListener("click", close);
   }, []);
 
   const handleCopyString = useCallback(() => {
@@ -127,9 +124,29 @@ export default function StringsPanel({ sessionId, isPhase2Ready, onJumpToSeq }: 
   }, [contextMenu]);
 
   const handleViewInMemory = useCallback(() => {
-    if (contextMenu) onJumpToSeq(contextMenu.record.seq);
+    if (!contextMenu) return;
+    const { addr, seq } = contextMenu.record;
     setContextMenu(null);
-  }, [contextMenu, onJumpToSeq]);
+    emit("action:view-in-memory", { addr, seq });
+  }, [contextMenu]);
+
+  const handleViewDetail = useCallback(() => {
+    if (!contextMenu) return;
+    const record = contextMenu.record;
+    setContextMenu(null);
+    const winLabel = `panel-string-detail-${Date.now()}`;
+    const data = encodeURIComponent(JSON.stringify(record));
+    new WebviewWindow(winLabel, {
+      url: `index.html?panel=string-detail&data=${data}`,
+      title: `String: ${record.content.slice(0, 40)}`,
+      width: 588,
+      minWidth: 588,
+      maxWidth: 588,
+      height: 580,
+      decorations: false,
+      transparent: true,
+    });
+  }, [contextMenu]);
 
   const handleShowXrefs = useCallback(async () => {
     if (!contextMenu || !sessionId) return;
@@ -141,7 +158,20 @@ export default function StringsPanel({ sessionId, isPhase2Ready, onJumpToSeq }: 
         addr: record.addr,
         byteLen: record.byte_len,
       });
-      setXrefs({ record, items });
+      const winLabel = `panel-string-xrefs-${Date.now()}`;
+      // 先监听子窗口 ready 信号，收到后再发送数据
+      const unlisten = await listen(`xrefs:ready:${winLabel}`, () => {
+        emitTo(winLabel, "xrefs:init-data", { record, items });
+        unlisten();
+      });
+      new WebviewWindow(winLabel, {
+        url: `index.html?panel=string-xrefs`,
+        title: `XRefs: ${record.content.slice(0, 30)}`,
+        width: 520,
+        height: 400,
+        decorations: false,
+        transparent: true,
+      });
     } catch (e) {
       console.error("get_string_xrefs failed:", e);
     }
@@ -224,7 +254,7 @@ export default function StringsPanel({ sessionId, isPhase2Ready, onJumpToSeq }: 
                 onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
                 onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = virtualRow.index % 2 === 0 ? "var(--bg-row-even)" : "var(--bg-row-odd)"; }}
               >
-                <span style={{ width: 70, flexShrink: 0, color: "var(--syntax-number)" }}>{record.seq}</span>
+                <span style={{ width: 70, flexShrink: 0, color: "var(--syntax-number)" }}>{record.seq + 1}</span>
                 <span style={{ width: 110, flexShrink: 0, color: "var(--syntax-literal)" }}>{record.addr}</span>
                 <span style={{
                   flex: 1, color: "var(--syntax-string)",
@@ -252,147 +282,17 @@ export default function StringsPanel({ sessionId, isPhase2Ready, onJumpToSeq }: 
         </div>
       )}
 
-      {/* 右键菜单 */}
+      {/* 右键菜单 — Portal 到 body，避免祖先 overflow:hidden 裁剪 */}
       {contextMenu && (
-        <div style={{
-          position: "fixed", left: contextMenu.x, top: contextMenu.y, zIndex: 9999,
-          background: "var(--bg-secondary)", border: "1px solid var(--border-color)",
-          borderRadius: 4, padding: "4px 0", boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
-          minWidth: 160,
-        }}>
-          {[
-            { label: "Copy String", action: handleCopyString },
-            { label: "Copy Address", action: handleCopyAddr },
-            { label: "View in Memory", action: handleViewInMemory },
-            { label: "Show XRefs", action: handleShowXrefs },
-          ].map(item => (
-            <div
-              key={item.label}
-              onClick={item.action}
-              style={{
-                padding: "5px 12px", fontSize: 12, cursor: "pointer",
-                color: "var(--text-primary)",
-              }}
-              onMouseEnter={e => (e.currentTarget.style.background = "var(--selection-bg)")}
-              onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
-            >
-              {item.label}
-            </div>
-          ))}
-        </div>
+        <ContextMenu x={contextMenu.x} y={contextMenu.y} onClose={() => setContextMenu(null)} minWidth={160}>
+          <ContextMenuItem label="View Detail" onClick={handleViewDetail} />
+          <ContextMenuItem label="View in Memory" onClick={handleViewInMemory} />
+          <ContextMenuItem label="Show XRefs" onClick={handleShowXrefs} />
+          <ContextMenuItem label="Copy String" onClick={handleCopyString} />
+          <ContextMenuItem label="Copy Address" onClick={handleCopyAddr} />
+        </ContextMenu>
       )}
 
-      {/* XRefs 弹窗 */}
-      {xrefs && (
-        <div style={{
-          position: "fixed", left: "50%", top: "50%", transform: "translate(-50%, -50%)",
-          zIndex: 9999, background: "var(--bg-primary)", border: "1px solid var(--border-color)",
-          borderRadius: 6, boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
-          width: 500, maxHeight: 400, display: "flex", flexDirection: "column",
-        }}>
-          <div style={{
-            padding: "8px 12px", borderBottom: "1px solid var(--border-color)",
-            display: "flex", justifyContent: "space-between", alignItems: "center",
-          }}>
-            <span style={{ fontSize: 12, color: "var(--text-primary)" }}>
-              XRefs for "{xrefs.record.content.slice(0, 30)}{xrefs.record.content.length > 30 ? "..." : ""}" ({xrefs.items.length})
-            </span>
-            <button
-              onClick={() => setXrefs(null)}
-              style={{
-                background: "none", border: "none", color: "var(--text-secondary)",
-                cursor: "pointer", fontSize: 16, padding: "0 4px",
-              }}
-            >×</button>
-          </div>
-          <div style={{ flex: 1, overflow: "auto" }}>
-            {xrefs.items.map((xref, i) => (
-              <div
-                key={i}
-                onClick={() => { onJumpToSeq(xref.seq); setXrefs(null); }}
-                style={{
-                  padding: "4px 12px", fontSize: 12, fontFamily: "var(--font-mono)",
-                  cursor: "pointer", borderBottom: "1px solid var(--border-subtle)",
-                  display: "flex", gap: 12,
-                }}
-                onMouseEnter={e => (e.currentTarget.style.background = "var(--selection-bg)")}
-                onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
-              >
-                <span style={{ color: "var(--syntax-number)", minWidth: 60 }}>{xref.seq}</span>
-                <span style={{ color: xref.rw === "R" ? "var(--syntax-keyword)" : "var(--syntax-literal)", minWidth: 16 }}>{xref.rw}</span>
-                <span style={{ color: "var(--text-secondary)", minWidth: 90 }}>{xref.insn_addr}</span>
-                <span style={{ color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{xref.disasm}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-      {/* 详情弹窗 */}
-      {detail && (
-        <div style={{
-          position: "fixed", left: "50%", top: "50%", transform: "translate(-50%, -50%)",
-          zIndex: 9999, background: "var(--bg-primary)", border: "1px solid var(--border-color)",
-          borderRadius: 6, boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
-          width: 560, maxHeight: "80vh", display: "flex", flexDirection: "column",
-        }}>
-          <div style={{
-            padding: "8px 12px", borderBottom: "1px solid var(--border-color)",
-            display: "flex", justifyContent: "space-between", alignItems: "center",
-          }}>
-            <span style={{ fontSize: 12, color: "var(--text-primary)", fontWeight: 600 }}>String Detail</span>
-            <button
-              onClick={() => setDetail(null)}
-              style={{
-                background: "none", border: "none", color: "var(--text-secondary)",
-                cursor: "pointer", fontSize: 16, padding: "0 4px",
-              }}
-            >×</button>
-          </div>
-          <div style={{ flex: 1, overflow: "auto", padding: 12, fontSize: 12, fontFamily: "var(--font-mono)" }}>
-            {[
-              { label: "Address", value: detail.addr },
-              { label: "Seq", value: String(detail.seq) },
-              { label: "Encoding", value: detail.encoding },
-              { label: "Byte Length", value: String(detail.byte_len) },
-              { label: "XRef Count", value: String(detail.xref_count) },
-            ].map(item => (
-              <div key={item.label} style={{ display: "flex", marginBottom: 8 }}>
-                <span style={{ width: 100, flexShrink: 0, color: "var(--text-secondary)" }}>{item.label}</span>
-                <span style={{ color: "var(--text-primary)" }}>{item.value}</span>
-              </div>
-            ))}
-            <div style={{ marginBottom: 4, color: "var(--text-secondary)" }}>Content</div>
-            <div style={{
-              padding: "8px 10px", background: "var(--bg-secondary)", borderRadius: 4,
-              border: "1px solid var(--border-color)", color: "var(--syntax-string)",
-              whiteSpace: "pre-wrap", wordBreak: "break-all", maxHeight: 300, overflow: "auto",
-              userSelect: "text", lineHeight: 1.5,
-            }}>
-              {detail.content}
-            </div>
-          </div>
-          <div style={{
-            padding: "8px 12px", borderTop: "1px solid var(--border-color)",
-            display: "flex", justifyContent: "flex-end", gap: 8,
-          }}>
-            <button
-              onClick={() => { navigator.clipboard.writeText(detail.content); }}
-              style={{
-                padding: "4px 12px", fontSize: 12, cursor: "pointer",
-                background: "var(--btn-primary)", color: "#fff", border: "none", borderRadius: 3,
-              }}
-            >Copy Content</button>
-            <button
-              onClick={() => setDetail(null)}
-              style={{
-                padding: "4px 12px", fontSize: 12, cursor: "pointer",
-                background: "var(--bg-secondary)", color: "var(--text-primary)",
-                border: "1px solid var(--border-color)", borderRadius: 3,
-              }}
-            >Close</button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

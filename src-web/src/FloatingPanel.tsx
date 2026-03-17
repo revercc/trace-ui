@@ -6,6 +6,8 @@ import MemoryPanel from "./components/MemoryPanel";
 import FloatingWindowFrame from "./components/FloatingWindowFrame";
 import SearchResultList from "./components/SearchResultList";
 import StringsPanel from "./components/StringsPanel";
+import StringDetailPanel from "./components/StringDetailPanel";
+import StringXRefsPanel from "./components/StringXRefsPanel";
 import type { SearchMatch, SearchResult } from "./types/trace";
 
 const PANEL_TITLES: Record<string, string> = {
@@ -14,6 +16,8 @@ const PANEL_TITLES: Record<string, string> = {
   "taint-state": "Taint State",
   search: "Search",
   strings: "Strings",
+  "string-detail": "String Detail",
+  "string-xrefs": "XRefs",
 };
 
 interface SyncState {
@@ -182,6 +186,10 @@ export default function FloatingPanel({ panel }: { panel: string }) {
             onJumpToSeq={handleJumpToSeq}
           />
         );
+      case "string-detail":
+        return <StringDetailPanel />;
+      case "string-xrefs":
+        return <StringXRefsPanel />;
       default:
         return (
           <div style={{
@@ -201,7 +209,7 @@ export default function FloatingPanel({ panel }: { panel: string }) {
   return (
     <FloatingWindowFrame title={title}>
       {/* 面板内容 */}
-      <div style={{ flex: 1, overflow: "hidden" }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         {renderPanelContent()}
       </div>
     </FloatingWindowFrame>
