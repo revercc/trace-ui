@@ -119,9 +119,10 @@ pub async fn scan_strings(
 4. 创建 StringBuilder，逐条调用 `process_write(addr, data, size, seq)`
 5. 遍历过程中每 10000 条检查 AtomicBool 取消标志，触发时提前退出
 6. **如果被取消**：丢弃结果，不写入 string_index，返回 `Err("cancelled")`
-7. **如果完成**：调用 `StringBuilder::finish()` 获取 StringIndex，调用 `StringBuilder::fill_xref_counts` 填充 xref
-8. 取写锁，将结果写入 `Phase2State.string_index`
-9. 从 SessionState 获取 `file_path` 和 `mmap` 引用，调用 `cache::save_cache` 重新保存 Phase2 缓存
+7. **如果完成**：调用 `StringBuilder::finish()` 获取 StringIndex
+8. 重新取读锁获取 `&MemAccessIndex` 引用，调用 `StringBuilder::fill_xref_counts` 填充 xref，释放读锁
+9. 取写锁，将结果写入 `Phase2State.string_index`
+10. 从 SessionState 获取 `file_path` 和 `mmap` 引用，调用 `cache::save_cache` 重新保存 Phase2 缓存
 
 **关于 value=None 的说明**：MemAccessRecord.data 来自 `mem_op.value.unwrap_or(0)`，而 StringBuilder 原本只处理 `value` 为 `Some` 的 WRITE。在当前 trace 格式中，`mem[WRITE]` 行必定包含写入值，`value=None` 不会出现在 WRITE 操作中。因此直接使用 MemAccessRecord.data 是安全的近似。
 
