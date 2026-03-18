@@ -149,7 +149,7 @@ export default function TabPanel({
           </div>
         ) : searchResults.length === 0 ? (
           <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <span style={{ color: "var(--text-secondary)", fontSize: 12 }}>{""}</span>
+            <span style={{ color: "var(--text-secondary)", fontSize: 12 }}>{searchQuery ? `No results found for "${searchQuery}"` : ""}</span>
           </div>
         ) : (
           <>

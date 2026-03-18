@@ -512,13 +512,16 @@ function App() {
   }, [foldState.ensureSeqVisible]);
 
   // 搜索路由：Search 已浮动时转发，否则本地搜索
-  const handleSearch = useCallback((query: string) => {
+  const handleSearch = useCallback(async (query: string) => {
     if (floatedPanels.has("search")) {
       emit("action:trigger-search", { query });
     } else {
-      searchTrace(query);
+      const count = await searchTrace(query);
+      if (query.trim() && count === 0) {
+        showToast(`No results found for "${query}"`);
+      }
     }
-  }, [searchTrace, floatedPanels]);
+  }, [searchTrace, floatedPanels, showToast]);
 
   const scanStrings = useCallback(async () => {
     if (!activeSessionId) return;
