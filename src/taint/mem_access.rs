@@ -50,4 +50,13 @@ impl MemAccessIndex {
             records.iter().map(move |r| (addr, r))
         })
     }
+
+    /// Merge another MemAccessIndex into this one by moving data (no clone).
+    /// Vec::append moves the buffer pointer — O(1) per address if target is empty,
+    /// O(n) reallocation otherwise. Much faster than clone + add per record.
+    pub fn merge_move(&mut self, other: MemAccessIndex) {
+        for (addr, mut records) in other.index.into_iter() {
+            self.index.entry(addr).or_default().append(&mut records);
+        }
+    }
 }

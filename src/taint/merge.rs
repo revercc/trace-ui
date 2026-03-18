@@ -756,14 +756,12 @@ pub fn merge_all_chunks(
     all_consumed_seqs.extend(extra_consumed);
     all_consumed_seqs.sort_unstable();
 
-    // MemAccessIndex — 逐 chunk 合并（0.75-0.85，每 chunk 报告进度）
+    // MemAccessIndex — 逐 chunk 合并（0.75-0.85，merge_move 替代 clone）
     let total_mem_chunks = chunk_mem_indices.len();
     let mem_accesses = {
         let mut merged = MemAccessIndex::new();
         for (ci, chunk_idx) in chunk_mem_indices.into_iter().enumerate() {
-            for (addr, record) in chunk_idx.iter_all() {
-                merged.add(addr, record.clone());
-            }
+            merged.merge_move(chunk_idx);
             if let Some(ref cb) = progress_fn {
                 cb(0.75 + 0.10 * (ci + 1) as f64 / total_mem_chunks as f64);
             }
