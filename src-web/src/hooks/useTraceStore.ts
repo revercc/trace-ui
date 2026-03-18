@@ -141,8 +141,12 @@ export function useTraceStore(skipStrings: boolean = false) {
             }
           } else {
             const pct = Math.round(progress * 100);
-            const label = isRebuildingRef.current ? "Rebuilding index" : "Building index";
-            setLoadingMessage(`${label}... ${pct}%`);
+            if (pct === 0) {
+              setLoadingMessage("正在加载文件...");
+            } else {
+              const label = isRebuildingRef.current ? "Rebuilding index" : "Building index";
+              setLoadingMessage(`${label}... ${pct}%`);
+            }
           }
         }
       }
