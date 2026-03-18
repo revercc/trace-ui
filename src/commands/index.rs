@@ -1,8 +1,10 @@
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use crate::cache;
 use crate::line_index::LineIndex;
 use crate::state::AppState;
 use crate::taint;
+use crate::taint::types::TraceFormat;
+use crate::taint::mem_access::{MemAccessIndex, MemAccessRecord, MemRw};
 
 #[tauri::command]
 pub async fn build_index(
@@ -34,6 +36,50 @@ pub async fn build_index(
         "totalLines": total_lines,
         "hasStringIndex": has_string_index,
     }));
+
+    // Spawn background MemAccessIndex build if parallel scan was used (it skips MemAccessIndex)
+    {
+        let sessions_read = state.sessions.read().map_err(|e| e.to_string())?;
+        let needs_build = sessions_read.get(&*session_id)
+            .and_then(|s| s.phase2.as_ref())
+            .map(|p| p.mem_accesses.total_addresses() == 0)
+            .unwrap_or(false);
+
+        if needs_build {
+            let mmap_clone = sessions_read.get(&*session_id).unwrap().mmap.clone();
+            let trace_format = sessions_read.get(&*session_id).unwrap().trace_format;
+            drop(sessions_read);
+
+            let sid = session_id.clone();
+            let app2 = app.clone();
+
+            tauri::async_runtime::spawn(async move {
+                let mmap_for_build = mmap_clone.clone();
+                let build_result = tauri::async_runtime::spawn_blocking(move || {
+                    build_mem_access_index_from_data(&mmap_for_build, trace_format)
+                }).await;
+
+                if let Ok(mem_idx) = build_result {
+                    let state = app2.state::<AppState>();
+                    if let Ok(mut sessions) = state.sessions.write() {
+                        if let Some(session) = sessions.get_mut(&*sid) {
+                            if let Some(ref mut phase2) = session.phase2 {
+                                crate::taint::strings::StringBuilder::fill_xref_counts(
+                                    &mut phase2.string_index,
+                                    &mem_idx,
+                                );
+                                phase2.mem_accesses = mem_idx;
+                                eprintln!("[index] background MemAccessIndex build complete for session {}", sid);
+                            }
+                        }
+                    }
+                    let _ = app2.emit("mem-index-ready", serde_json::json!({
+                        "sessionId": sid,
+                    }));
+                }
+            });
+        }
+    }
 
     result
 }
@@ -198,4 +244,68 @@ async fn build_index_inner(
     }
 
     Ok(())
+}
+
+/// Build MemAccessIndex by scanning the mmap data for memory operations.
+/// This is a lightweight pass — only extracts mem_op, no dependency analysis.
+fn build_mem_access_index_from_data(
+    data: &[u8],
+    format: TraceFormat,
+) -> MemAccessIndex {
+    use memchr::memchr;
+    use crate::taint::{parser, gumtrace_parser};
+    use crate::phase2;
+
+    let mut mem_idx = MemAccessIndex::new();
+    let mut pos = 0usize;
+    let mut seq = 0u32;
+    let len = data.len();
+
+    while pos < len {
+        let line_end = match memchr(b'\n', &data[pos..]) {
+            Some(p) => pos + p,
+            None => len,
+        };
+        let end = if line_end > pos && data[line_end - 1] == b'\r' {
+            line_end - 1
+        } else {
+            line_end
+        };
+
+        if let Ok(raw_line) = std::str::from_utf8(&data[pos..end]) {
+            // Skip gumtrace special lines (they don't have memory operations)
+            if format == TraceFormat::Gumtrace && gumtrace_parser::is_special_line(raw_line) {
+                seq += 1;
+                pos = if line_end < len { line_end + 1 } else { len };
+                continue;
+            }
+
+            let parsed = match format {
+                TraceFormat::Unidbg => parser::parse_line(raw_line),
+                TraceFormat::Gumtrace => gumtrace_parser::parse_line_gumtrace(raw_line),
+            };
+
+            if let Some(line) = parsed {
+                if let Some(ref mem_op) = line.mem_op {
+                    let rw = if mem_op.is_write { MemRw::Write } else { MemRw::Read };
+                    let insn_addr = phase2::extract_insn_addr(raw_line);
+                    mem_idx.add(
+                        mem_op.abs,
+                        MemAccessRecord {
+                            seq,
+                            insn_addr,
+                            rw,
+                            data: mem_op.value.unwrap_or(0),
+                            size: mem_op.elem_width,
+                        },
+                    );
+                }
+            }
+        }
+
+        seq += 1;
+        pos = if line_end < len { line_end + 1 } else { len };
+    }
+
+    mem_idx
 }
