@@ -1097,10 +1097,22 @@ function App() {
         borderTop: "1px solid var(--border-color)",
         fontSize: 11, color: "var(--text-secondary)",
       }}>
-        <span>
+        <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
           {isLoaded && filePath
             ? `${filePath.split(/[/\\]/).pop()} — ${totalLines.toLocaleString()} lines`
             : ""}
+          {slice.isSlicing && (
+            <>
+              <span style={{
+                display: "inline-block", width: 12, height: 12,
+                border: "2px solid var(--border-color)",
+                borderTop: "2px solid var(--btn-primary)",
+                borderRadius: "50%",
+                animation: "spin 1s linear infinite",
+              }} />
+              <span>污点分析中...</span>
+            </>
+          )}
         </span>
         <StatusBarSelection />
       </div>
@@ -1112,11 +1124,16 @@ function App() {
           onExecute={async (specs, startSeq, endSeq, dataOnly) => {
             const sourceSeq = taintDialogSeq;
             setTaintDialogSeq(null);
-            await slice.runSlice(specs, startSeq, endSeq, sourceSeq, dataOnly);
-            // 跳转到污点源行
-            scrollAlignRef.current = "end";
-            setScrollTrigger(c => c + 1);
-            navigationStore.navigate(sourceSeq);
+            try {
+              await slice.runSlice(specs, startSeq, endSeq, sourceSeq, dataOnly);
+              showToast("污点分析完成");
+              // 跳转到污点源行
+              scrollAlignRef.current = "end";
+              setScrollTrigger(c => c + 1);
+              navigationStore.navigate(sourceSeq);
+            } catch (e) {
+              showToast(`污点分析失败: ${e}`, 5000);
+            }
           }}
           onClose={() => setTaintDialogSeq(null)}
         />
