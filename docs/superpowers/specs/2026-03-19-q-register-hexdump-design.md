@@ -5,7 +5,9 @@
 
 ## 问题
 
-ARM64 q 寄存器为 128-bit，但 `MemAccessRecord.data` 是 `u64`（64-bit），且 `parse_hex_u64` 无法解析超过 16 位十六进制的值（溢出返回 None）。导致所有 q 寄存器内存访问在 hexdump 中显示为 `??`。
+ARM64 q 寄存器为 128-bit，但 `MemAccessRecord.data` 是 `u64`（64-bit），且 `parse_hex_u64` 无法解析超过 16 位十六进制的值（溢出返回 None）。
+
+当前行为：对于 `ldr q0, [x0]`，`elem_width=16`，`value=None`（parser 中 `elem_width <= 8` 守卫跳过），导致记录创建时 `data = mem_op.value.unwrap_or(0) = 0`，`size = 16`。产生一条 `size=16, data=0` 的错误记录。hexdump 恢复算法 `check_offset 0..=7` 只能覆盖前 8 字节（均为 0x00），后 8 字节无记录显示 `??`。
 
 ## 方案
 
@@ -51,7 +53,11 @@ pub struct MemOp {
 }
 ```
 
-关键约束：`value`/`value2` 对 128-bit 保持 None，避免 taint 剪枝逻辑误用部分值。
+关键约束：
+- `value`/`value2` 对 128-bit 保持 None，避免 taint 剪枝逻辑（scanner.rs:700-708 pass-through 剪枝）误用部分值。
+- `value_lo`/`value_hi` 与 `value` 完全正交：128-bit 时 `value=None, value_lo=Some`；scalar 时 `value=Some, value_lo=None`。
+- `MemOp` 只在两处构造（parser.rs 和 gumtrace_parser.rs），新增字段在非 128-bit 路径初始化为 `None`。
+- 注意：scanner.rs 的 `memLastDef` 更新（第 835-856 行）直接操作 `MemOp` 字段而非 `MemAccessRecord`，不受记录拆分影响。128-bit STORE 的 `value` 为 None → `masked_val=0`，memLastDef 标记正确但值为 0（无法做 pass-through 优化，可接受）。
 
 ### 4. `src/phase2.rs`、`src/taint/mod.rs`、`src/taint/chunk_scan.rs` — 记录创建
 
