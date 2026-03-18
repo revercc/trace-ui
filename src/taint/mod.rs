@@ -19,7 +19,6 @@ use rustc_hash::FxHashMap;
 
 use crate::line_index::LineIndexBuilder;
 use crate::phase2;
-use crate::state::Phase2State;
 use call_tree::CallTreeBuilder;
 use insn_class::InsnClass;
 use mem_access::{MemAccessIndex, MemAccessRecord, MemRw};
@@ -34,6 +33,14 @@ use types::RegId;
 pub type ProgressFn = Box<dyn Fn(usize, usize) + Send + Sync>;
 
 const CHECKPOINT_INTERVAL: u32 = 1000;
+
+/// Phase 2 索引数据（CallTree + MemAccessIndex + RegCheckpoints + StringIndex）
+pub struct Phase2State {
+    pub call_tree: call_tree::CallTree,
+    pub mem_accesses: mem_access::MemAccessIndex,
+    pub reg_checkpoints: reg_checkpoint::RegCheckpoints,
+    pub string_index: strings::StringIndex,
+}
 
 /// scan_unified 的返回结果
 pub struct ScanResult {

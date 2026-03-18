@@ -24,7 +24,7 @@ fn resolve_start_index(
     reg_last_def: &crate::taint::scanner::RegLastDef,
     mem_last_def: &crate::flat::mem_last_def::MemLastDefView,
     mmap: &[u8],
-    line_index: &crate::line_index::LineIndex,
+    line_index: &crate::flat::line_index::LineIndexView<'_>,
     format: TraceFormat,
 ) -> Result<u32, String> {
     if let Some(rest) = spec.strip_prefix("reg:") {
@@ -73,7 +73,7 @@ fn resolve_reg_def(
     target_reg: crate::taint::types::RegId,
     from_line: u32,
     mmap: &[u8],
-    line_index: &crate::line_index::LineIndex,
+    line_index: &crate::flat::line_index::LineIndexView<'_>,
     format: TraceFormat,
 ) -> Result<u32, String> {
     let scan_start = from_line.saturating_sub(MAX_RESOLVE_SCAN);
@@ -101,7 +101,7 @@ fn resolve_mem_store(
     target_addr: u64,
     from_line: u32,
     mmap: &[u8],
-    line_index: &crate::line_index::LineIndex,
+    line_index: &crate::flat::line_index::LineIndexView<'_>,
     format: TraceFormat,
 ) -> Result<u32, String> {
     let scan_start = from_line.saturating_sub(MAX_RESOLVE_SCAN);
@@ -151,7 +151,8 @@ fn run_slice_inner(
         let format = session.trace_format;
         let mut start_indices = Vec::new();
         for spec in from_specs {
-            let idx = resolve_start_index(spec, reg_last_def, &mem_last_def, &session.mmap, session.line_index.as_ref().ok_or_else(|| "索引尚未构建完成".to_string())?, format)?;
+            let lidx_view = session.line_index_view().ok_or_else(|| "索引尚未构建完成".to_string())?;
+            let idx = resolve_start_index(spec, reg_last_def, &mem_last_def, &session.mmap, &lidx_view, format)?;
             start_indices.push(idx);
         }
 
@@ -282,7 +283,7 @@ pub fn export_taint_results(
         .ok_or_else(|| format!("Session {} 不存在", session_id))?;
     let marked = session.slice_result.as_ref()
         .ok_or("没有活跃的污点分析结果")?;
-    let line_index = session.line_index.as_ref().ok_or_else(|| "索引尚未构建完成".to_string())?;
+    let line_index = session.line_index_view().ok_or_else(|| "索引尚未构建完成".to_string())?;
 
     let marked_count = marked.count_ones() as u32;
     let total_lines = marked.len() as u32;

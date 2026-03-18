@@ -97,7 +97,7 @@ pub fn get_string_xrefs(
     let base_addr = u64::from_str_radix(addr_str, 16)
         .map_err(|_| format!("无效地址: {}", addr))?;
 
-    let line_index = session.line_index.as_ref().ok_or("行索引未就绪")?;
+    let line_index = session.line_index_view().ok_or("行索引未就绪")?;
     let mmap = &session.mmap;
 
     let mut xrefs: Vec<StringXRef> = Vec::new();

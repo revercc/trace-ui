@@ -5,7 +5,7 @@ use crate::taint::parser;
 use crate::taint::reg_checkpoint::RegCheckpoints;
 use crate::taint::types::{parse_reg, Operand, RegId};
 
-use crate::state::Phase2State;
+use crate::taint::Phase2State;
 
 const CHECKPOINT_INTERVAL: u32 = 1000;
 

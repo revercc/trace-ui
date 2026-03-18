@@ -5,8 +5,6 @@ use sha2::{Sha256, Digest};
 use memmap2::Mmap;
 use crate::flat::archives::{Phase2Archive, ScanArchive};
 use crate::flat::line_index::LineIndexArchive;
-use crate::state::Phase2State;
-use crate::taint::scanner::ScanState;
 use crate::taint::strings::StringIndex;
 
 const MAGIC: &[u8; 8] = b"TCACHE03";
@@ -195,36 +193,6 @@ pub fn save_string_cache(file_path: &str, data: &[u8], index: &StringIndex) {
 
 pub fn load_string_cache(file_path: &str, data: &[u8]) -> Option<StringIndex> {
     load_cached(file_path, data, ".strings")
-}
-
-// ── Legacy Phase2 bincode 缓存 (kept for transition) ──
-
-pub fn load_cache(file_path: &str, data: &[u8]) -> Option<Phase2State> {
-    load_cached(file_path, data, "")
-}
-
-pub fn save_cache(file_path: &str, data: &[u8], state: &Phase2State) {
-    save_cached(file_path, data, "", state);
-}
-
-// ── Legacy ScanState bincode 缓存 (kept for transition) ──
-
-pub fn load_scan_cache(file_path: &str, data: &[u8]) -> Option<ScanState> {
-    load_cached(file_path, data, "-scan")
-}
-
-pub fn save_scan_cache(file_path: &str, data: &[u8], state: &ScanState) {
-    save_cached(file_path, data, "-scan", state);
-}
-
-// ── Legacy LineIndex bincode 缓存 (kept for transition) ──
-
-pub fn load_line_index_cache(file_path: &str, data: &[u8]) -> Option<crate::line_index::LineIndex> {
-    load_cached(file_path, data, "-lidx")
-}
-
-pub fn save_line_index_cache(file_path: &str, data: &[u8], line_index: &crate::line_index::LineIndex) {
-    save_cached(file_path, data, "-lidx", line_index);
 }
 
 /// 删除指定文件的所有缓存（新 rkyv + 旧 bincode）

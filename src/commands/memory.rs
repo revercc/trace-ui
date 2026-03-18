@@ -1,11 +1,11 @@
 use serde::Serialize;
 use tauri::State;
 use crate::state::AppState;
-use crate::line_index::LineIndex;
+use crate::flat::line_index::LineIndexView;
 use crate::phase2::extract_insn_offset;
 
 /// 从 trace 行提取偏移地址，回退到绝对地址
-fn resolve_offset(seq: u32, abs_addr: u64, line_index: Option<&LineIndex>, data: &[u8]) -> String {
+fn resolve_offset(seq: u32, abs_addr: u64, line_index: Option<&LineIndexView<'_>>, data: &[u8]) -> String {
     if let Some(li) = line_index {
         if let Some(line_bytes) = li.get_line(data, seq) {
             if let Ok(line_str) = std::str::from_utf8(line_bytes) {
@@ -137,7 +137,7 @@ pub fn get_mem_history(
     };
 
     use crate::commands::browse::parse_trace_line;
-    let line_index = session.line_index.as_ref().ok_or_else(|| "索引尚未构建完成".to_string())?;
+    let line_index = session.line_index_view().ok_or_else(|| "索引尚未构建完成".to_string())?;
     let data: &[u8] = &session.mmap;
     let result: Vec<MemHistoryRecord> = records
         .iter()
@@ -151,7 +151,7 @@ pub fn get_mem_history(
                 rw: if rec.is_read() { "R".to_string() } else { "W".to_string() },
                 data: format!("0x{:x}", rec.data),
                 size: rec.size,
-                insn_addr: resolve_offset(rec.seq, rec.insn_addr, Some(line_index), data),
+                insn_addr: resolve_offset(rec.seq, rec.insn_addr, Some(&line_index), data),
                 disasm,
             }
         })

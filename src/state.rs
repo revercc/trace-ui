@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, RwLock};
 use memmap2::Mmap;
-use serde::{Serialize, Deserialize};
 use crate::flat::archives::{CachedStore, Phase2Archive, ScanArchive};
 use crate::flat::line_index::{LineIndexArchive, LineIndexView};
 use crate::flat::mem_access::MemAccessView;
@@ -17,16 +16,6 @@ use crate::taint::scanner::RegLastDef;
 use crate::taint::strings::StringIndex;
 use crate::taint::types::TraceFormat;
 use crate::taint::gumtrace_parser::CallAnnotation;
-
-/// Phase 2 索引数据（CallTree + MemAccessIndex + RegCheckpoints）
-/// 保留用于旧 bincode 缓存兼容，将在 Task 14 移除
-#[derive(Serialize, Deserialize)]
-pub struct Phase2State {
-    pub call_tree: CallTree,
-    pub mem_accesses: crate::taint::mem_access::MemAccessIndex,
-    pub reg_checkpoints: crate::taint::reg_checkpoint::RegCheckpoints,
-    pub string_index: StringIndex,
-}
 
 /// 单个 trace 文件的会话状态
 #[allow(dead_code)]
@@ -48,11 +37,6 @@ pub struct SessionState {
 
     // LineIndex (rkyv)
     pub lidx_store: Option<CachedStore<LineIndexArchive>>,
-
-    // Legacy fields (kept for transition, removed in Task 14)
-    pub phase2: Option<Phase2State>,
-    pub scan_state: Option<crate::taint::scanner::ScanState>,
-    pub line_index: Option<crate::line_index::LineIndex>,
 
     // Unchanged
     pub slice_result: Option<bitvec::prelude::BitVec>,

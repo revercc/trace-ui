@@ -183,50 +183,55 @@ pub async fn search_trace(
     let mode = parse_search_mode(&request.query)?;
     let max_results = request.max_results;
 
-    // 从 session 中提取搜索所需数据（使用缓存的 call_search_texts）
-    let (mmap_arc, total_lines, trace_format, call_search_texts, call_annotations, consumed_seqs, line_index) = {
+    // 确定并行分块数
+    let num_cpus = std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(4);
+
+    // 从 session 中提取搜索所需数据，并预计算分块边界（使用缓存的 call_search_texts）
+    let (mmap_arc, total_lines, trace_format, call_search_texts, call_annotations, consumed_seqs, chunks) = {
         let sessions = state.sessions.read().map_err(|e| e.to_string())?;
         let session = sessions.get(&session_id).ok_or_else(|| format!("Session {} 不存在", session_id))?;
+        let total_lines = session.lidx_store.as_ref().map(|s| s.total_lines()).unwrap_or(0);
+
+        // 预计算并行分块边界（在持锁期间使用 line_index_view）
+        let chunks: Option<Vec<(u32, u32, usize)>> = if num_cpus > 1 && total_lines > 10000 {
+            session.line_index_view().map(|li| {
+                let data: &[u8] = &session.mmap;
+                let num_chunks = num_cpus.min(16);
+                let lines_per_chunk = (total_lines as usize + num_chunks - 1) / num_chunks;
+                let mut chunks = Vec::with_capacity(num_chunks);
+                for i in 0..num_chunks {
+                    let start_seq = (i * lines_per_chunk) as u32;
+                    if start_seq >= total_lines {
+                        break;
+                    }
+                    let end_seq = ((i + 1) * lines_per_chunk).min(total_lines as usize) as u32;
+                    let start_offset = li.line_byte_offset(data, start_seq).unwrap_or(0) as usize;
+                    chunks.push((start_seq, end_seq, start_offset));
+                }
+                chunks
+            })
+        } else {
+            None
+        };
+
         (
             session.mmap.clone(),
-            session.line_index.as_ref().map(|li| li.total_lines()).unwrap_or(0),
+            total_lines,
             session.trace_format,
             session.call_search_texts.clone(),
             session.call_annotations.clone(),
             session.consumed_seqs.iter().copied().collect::<std::collections::HashSet<u32>>(),
-            session.line_index.clone(),
+            chunks,
         )
     };
 
     let result = tauri::async_runtime::spawn_blocking(move || {
         let data: &[u8] = &mmap_arc;
 
-        // 确定并行分块数
-        let num_cpus = std::thread::available_parallelism()
-            .map(|n| n.get())
-            .unwrap_or(4);
-
-        // 如果行数较少或无 line_index，退化为单线程
-        let use_parallel = num_cpus > 1 && total_lines > 10000 && line_index.is_some();
-
-        if use_parallel {
-            let li = line_index.as_ref().unwrap();
-            let num_chunks = num_cpus.min(16);
-            let lines_per_chunk = (total_lines as usize + num_chunks - 1) / num_chunks;
-
-            // 构建分块边界: (start_seq, end_seq, start_byte_offset)
-            let mut chunks = Vec::with_capacity(num_chunks);
-            for i in 0..num_chunks {
-                let start_seq = (i * lines_per_chunk) as u32;
-                if start_seq >= total_lines {
-                    break;
-                }
-                let end_seq = ((i + 1) * lines_per_chunk).min(total_lines as usize) as u32;
-                let start_offset = li.line_byte_offset(data, start_seq).unwrap_or(0) as usize;
-                chunks.push((start_seq, end_seq, start_offset));
-            }
-
-            // rayon 并行搜索各分块
+        if let Some(chunks) = chunks {
+            // 并行搜索各分块
             use rayon::prelude::*;
             let chunk_results: Vec<(Vec<SearchMatch>, u32)> = chunks.par_iter()
                 .map(|&(start_seq, end_seq, start_offset)| {
@@ -257,7 +262,7 @@ pub async fn search_trace(
                 truncated: total_matches > max_results,
             }
         } else {
-            // 单线程搜索（行数少或无 line_index 时）
+            // 单线程搜索（行数少或无 lidx_store 时）
             let (matches, total_matches) = search_chunk(
                 data, 0, total_lines, 0,
                 &mode, &consumed_seqs, &call_search_texts,

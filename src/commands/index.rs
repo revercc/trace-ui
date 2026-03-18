@@ -201,11 +201,6 @@ async fn build_index_inner(
                 session.scan_store = Some(scan_store);
                 session.lidx_store = Some(lidx_store);
 
-                // Legacy fields not populated from rkyv cache (consumers migrated)
-                session.phase2 = None;
-                session.scan_state = None;
-                session.line_index = None;
-
                 eprintln!("[index] session populated from rkyv cache");
             }
             None // no need to save cache again
@@ -254,11 +249,6 @@ async fn build_index_inner(
                 // Build LineIndexArchive
                 let lidx_archive = convert::line_index_to_archive(&scan_result.line_index);
                 session.lidx_store = Some(CachedStore::Owned(lidx_archive));
-
-                // Legacy fields: keep populated during transition for safety
-                session.scan_state = Some(scan_result.scan_state);
-                session.phase2 = None; // phase2 was moved out, can't put back
-                session.line_index = Some(scan_result.line_index);
 
                 Some(session.file_path.clone())
             } else {

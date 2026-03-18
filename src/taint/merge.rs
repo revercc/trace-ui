@@ -468,8 +468,8 @@ pub fn merge_string_indices(indices: Vec<StringIndex>) -> StringIndex {
 }
 
 use crate::taint::ScanResult;
+use crate::taint::Phase2State;
 use crate::taint::scanner::{ScanState, MemLastDef};
-use crate::state::Phase2State;
 use crate::taint::types::TraceFormat;
 use crate::taint::parallel_types::ChunkResult;
 
