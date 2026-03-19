@@ -65,10 +65,10 @@ export default function TabPanel({
 
   // 污点分析自动切换（仅在 Taint State 未浮动时）
   useEffect(() => {
-    if (isSlicing && !floatedPanels.has("taint-state")) {
+    if ((isSlicing || sliceActive) && !floatedPanels.has("taint-state")) {
       setActive("Taint State");
     }
-  }, [isSlicing, floatedPanels]);
+  }, [isSlicing, sliceActive, floatedPanels]);
 
   // View in Memory：自动切换到 Memory tab（仅在 Memory 未浮动时）
   useEffect(() => {
