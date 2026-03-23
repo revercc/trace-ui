@@ -138,9 +138,13 @@ pub struct GetTaintedLinesRequest {
     #[schemars(description = "Return full TraceLine fields including raw, reg_before, so_offset, mem_size (default: false)")]
     #[serde(default)]
     pub full: bool,
+    #[schemars(description = "Filter out lines that only modify stack/frame pointer registers (sp, x29). Default: true")]
+    #[serde(default = "default_true")]
+    pub ignore_stack_ops: bool,
 }
 
 fn default_taint_limit() -> u32 { 50 }
+fn default_true() -> bool { true }
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct ClearTaintRequest {

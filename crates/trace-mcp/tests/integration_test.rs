@@ -794,3 +794,70 @@ fn test_get_slice_origin() {
 
     engine.close_session(&sid).unwrap();
 }
+
+#[test]
+fn test_taint_context_preserved() {
+    let (engine, sid) = setup_session(&get_trace_path());
+    let info = engine.get_session_info(&sid).unwrap();
+    let mid = info.total_lines / 2;
+
+    engine.run_slice(
+        &sid,
+        &["reg:X0@last".to_string()],
+        trace_core::SliceOptions {
+            start_seq: Some(0),
+            end_seq: Some(mid),
+            data_only: true,
+        },
+    ).expect("run_slice");
+
+    let origin = engine.get_slice_origin(&sid).expect("get_slice_origin")
+        .expect("should have origin");
+    assert_eq!(origin.from_specs, vec!["reg:X0@last"]);
+    assert!(origin.data_only);
+    assert_eq!(origin.start_seq, Some(0));
+    assert_eq!(origin.end_seq, Some(mid));
+
+    engine.close_session(&sid).unwrap();
+}
+
+#[test]
+fn test_stack_only_change_detection() {
+    // Stack-only cases (should be filtered)
+    let stack_only_cases = vec![
+        "sp=0xbffff6b0",
+        "x29=0x0 sp=0xbffff6b0",
+        "sp=0xbffff6b0 x29=0x0",
+    ];
+    for case in &stack_only_cases {
+        assert!(check_stack_only(case), "should be stack-only: {}", case);
+    }
+
+    // Non-stack cases (should NOT be filtered)
+    let non_stack_cases = vec![
+        "x0=0x12345",
+        "x29=0x0 x30=0x7ffff0000 sp=0xbffff6b0",
+        "x8=0x0 sp=0xbffff6b0",
+        "",
+    ];
+    for case in &non_stack_cases {
+        assert!(!check_stack_only(case), "should NOT be stack-only: {}", case);
+    }
+}
+
+/// Mirror of is_stack_only_change logic for testing (since the original is private in tools.rs)
+fn check_stack_only(changes: &str) -> bool {
+    if changes.is_empty() { return false; }
+    let mut has_any = false;
+    for token in changes.split_whitespace() {
+        if let Some(eq_pos) = token.find('=') {
+            let reg = &token[..eq_pos];
+            has_any = true;
+            match reg {
+                "sp" | "x29" | "fp" | "wsp" | "w29" => {}
+                _ => return false,
+            }
+        }
+    }
+    has_any
+}

@@ -76,6 +76,23 @@ fn format_lines(lines: &[TraceLine], full: bool) -> Vec<serde_json::Value> {
     }
 }
 
+/// 检查 changes 字段是否仅包含栈/帧指针寄存器变化
+fn is_stack_only_change(changes: &str) -> bool {
+    if changes.is_empty() { return false; }
+    let mut has_any = false;
+    for token in changes.split_whitespace() {
+        if let Some(eq_pos) = token.find('=') {
+            let reg = &token[..eq_pos];
+            has_any = true;
+            match reg {
+                "sp" | "x29" | "fp" | "wsp" | "w29" => {}
+                _ => return false,
+            }
+        }
+    }
+    has_any
+}
+
 #[derive(Clone)]
 pub struct TraceToolHandler {
     engine: Arc<TraceEngine>,
@@ -309,7 +326,8 @@ impl TraceToolHandler {
         name = "get_tainted_lines",
         description = "Retrieve the instructions marked as tainted by the last run_taint_analysis. \
             Returns full line content with disassembly for each tainted instruction. \
-            Supports pagination with offset/limit."
+            Supports pagination with offset/limit. \
+            By default, filters out lines that only modify stack/frame pointer registers."
     )]
     fn get_tainted_lines(&self, Parameters(req): Parameters<GetTaintedLinesRequest>) -> Result<String, String> {
         let limit = req.limit.min(200);
@@ -317,21 +335,61 @@ impl TraceToolHandler {
         let all_seqs = self.engine.get_tainted_seqs(&req.session_id)
             .map_err(|e| e.to_string())?;
 
-        let total = all_seqs.len() as u32;
-        let page_seqs: Vec<u32> = all_seqs.into_iter()
-            .skip(req.offset as usize)
-            .take(limit as usize)
-            .collect();
+        let total_tainted = all_seqs.len() as u32;
 
-        let lines = self.engine.get_lines(&req.session_id, &page_seqs)
-            .map_err(|e| e.to_string())?;
+        // 栈操作过滤 + 分页
+        let (lines, total_after_filter, stack_ops_filtered) = if req.ignore_stack_ops && !all_seqs.is_empty() {
+            // 需要加载全部污点行以判断 is_stack_only_change
+            let all_lines = self.engine.get_lines(&req.session_id, &all_seqs)
+                .map_err(|e| e.to_string())?;
+            // 先过滤，再分页，复用已加载的行数据
+            let kept: Vec<TraceLine> = all_lines.into_iter()
+                .filter(|line| !is_stack_only_change(&line.changes))
+                .collect();
+            let filtered_count = total_tainted - kept.len() as u32;
+            let after_filter = kept.len() as u32;
+            let page_lines: Vec<TraceLine> = kept.into_iter()
+                .skip(req.offset as usize)
+                .take(limit as usize)
+                .collect();
+            (page_lines, after_filter, filtered_count)
+        } else {
+            // 无过滤：只加载分页所需的行
+            let page_seqs: Vec<u32> = all_seqs.iter()
+                .skip(req.offset as usize)
+                .take(limit as usize)
+                .copied()
+                .collect();
+            let page_lines = self.engine.get_lines(&req.session_id, &page_seqs)
+                .map_err(|e| e.to_string())?;
+            (page_lines, total_tainted, 0u32)
+        };
+
+        // 上下文摘要
+        let context = self.engine.get_slice_origin(&req.session_id)
+            .ok()
+            .flatten()
+            .map(|o| {
+                let mut ctx = format!("taint from {}, data_only={}",
+                    o.from_specs.join(", "), o.data_only);
+                if let Some(s) = o.start_seq {
+                    ctx.push_str(&format!(", start_seq={}", s));
+                }
+                if let Some(e) = o.end_seq {
+                    ctx.push_str(&format!(", end_seq={}", e));
+                }
+                ctx
+            });
 
         Ok(json(&serde_json::json!({
+            "context": context,
             "lines": format_lines(&lines, req.full),
-            "total_tainted": total,
+            "total_tainted": total_tainted,
+            "total_after_filter": total_after_filter,
+            "stack_ops_filtered": stack_ops_filtered,
             "offset": req.offset,
             "count": lines.len(),
-            "has_more": (req.offset as usize + lines.len()) < total as usize,
+            "has_more": (req.offset as usize + lines.len()) < total_after_filter as usize,
         })))
     }
 
