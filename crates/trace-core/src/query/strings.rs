@@ -87,7 +87,13 @@ pub struct PagedMemory {
 
 impl PagedMemory {
     pub fn new() -> Self {
-        Self { pages: FxHashMap::default() }
+        Self::with_capacity(0)
+    }
+
+    pub fn with_capacity(estimated_pages: usize) -> Self {
+        Self {
+            pages: FxHashMap::with_capacity_and_hasher(estimated_pages, Default::default()),
+        }
     }
 
     pub fn set_byte(&mut self, addr: u64, value: u8) {
@@ -162,8 +168,12 @@ pub struct StringBuilder {
 
 impl StringBuilder {
     pub fn new() -> Self {
+        Self::with_capacity(0)
+    }
+
+    pub fn with_capacity(estimated_pages: usize) -> Self {
         Self {
-            byte_image: PagedMemory::new(),
+            byte_image: PagedMemory::with_capacity(estimated_pages),
             active: FxHashMap::default(),
             results: Vec::new(),
             next_id: 1, // start from 1, 0 = no owner

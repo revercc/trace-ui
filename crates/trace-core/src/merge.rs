@@ -797,7 +797,22 @@ pub fn merge_all_chunks(
         let report_interval = (total_accesses / 100).max(1);
         let mut processed = 0usize;
 
-        let mut sb = crate::query::strings::StringBuilder::new();
+        let estimated_pages = {
+            let mut min_addr = u64::MAX;
+            let mut max_addr = 0u64;
+            for chunk in &chunk_string_accesses {
+                for &(addr, _, _, _, _) in chunk {
+                    min_addr = min_addr.min(addr);
+                    max_addr = max_addr.max(addr);
+                }
+            }
+            if max_addr > min_addr {
+                ((max_addr - min_addr) / 4096 + 1) as usize
+            } else {
+                1024
+            }
+        };
+        let mut sb = crate::query::strings::StringBuilder::with_capacity(estimated_pages);
         for chunk_accesses in chunk_string_accesses.into_iter() {
             for &(addr, data, size, seq, rw) in &chunk_accesses {
                 sb.process_access(addr, data, size, seq, rw);
