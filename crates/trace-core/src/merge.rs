@@ -831,7 +831,6 @@ pub fn merge_all_chunks(
                     }
                 }
             }
-            // chunk_accesses 在这里 drop，释放内存
         }
 
         if let Some(ref cb) = progress_fn { cb(0.97); }

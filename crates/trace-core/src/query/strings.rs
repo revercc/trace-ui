@@ -304,8 +304,10 @@ impl StringBuilder {
     }
 
     fn scan_forward(&self, addr: u64) -> u64 {
-        let limit = addr.saturating_add(MAX_SCAN_LEN);
-        let mut cur = addr;
+        // 防止返回 u64::MAX — 否则 extract_strings_in_range 的
+        // while pos <= end 循环会因 pos 溢出回绕而无限循环
+        let limit = addr.saturating_add(MAX_SCAN_LEN).min(u64::MAX - 1);
+        let mut cur = addr.min(u64::MAX - 1);
         let mut pg_addr = cur & PAGE_MASK;
         let mut pg = self.byte_image.get_page(pg_addr);
 
@@ -326,6 +328,8 @@ impl StringBuilder {
     }
 
     fn extract_strings_in_range(&mut self, start: u64, end: u64, seq: u32, rw: StringRw) {
+        // 防止 end == u64::MAX 导致 pos 回绕造成无限循环
+        let end = end.min(u64::MAX - 1);
         let mut pos = start;
         while pos <= end {
             // Check current byte using page-level access
