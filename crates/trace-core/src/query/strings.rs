@@ -38,15 +38,29 @@ const PAGE_MASK: u64 = !(PAGE_SIZE as u64 - 1);
 
 struct Page {
     data: [u8; PAGE_SIZE],
-    valid: [bool; PAGE_SIZE],
+    valid: [u64; PAGE_SIZE / 64], // bitset: 512 bytes vs 4096 bytes
 }
 
 impl Page {
     fn new() -> Self {
         Page {
             data: [0; PAGE_SIZE],
-            valid: [false; PAGE_SIZE],
+            valid: [0u64; PAGE_SIZE / 64],
         }
+    }
+
+    #[inline]
+    fn is_valid(&self, offset: usize) -> bool {
+        let word = offset / 64;
+        let bit = offset % 64;
+        (self.valid[word] >> bit) & 1 != 0
+    }
+
+    #[inline]
+    fn set_valid(&mut self, offset: usize) {
+        let word = offset / 64;
+        let bit = offset % 64;
+        self.valid[word] |= 1u64 << bit;
     }
 }
 
@@ -64,14 +78,14 @@ impl PagedMemory {
         let offset = (addr & !PAGE_MASK) as usize;
         let page = self.pages.entry(page_addr).or_insert_with(|| Box::new(Page::new()));
         page.data[offset] = value;
-        page.valid[offset] = true;
+        page.set_valid(offset);
     }
 
     pub fn get_byte(&self, addr: u64) -> Option<u8> {
         let page_addr = addr & PAGE_MASK;
         let offset = (addr & !PAGE_MASK) as usize;
         self.pages.get(&page_addr).and_then(|page| {
-            if page.valid[offset] { Some(page.data[offset]) } else { None }
+            if page.is_valid(offset) { Some(page.data[offset]) } else { None }
         })
     }
 }
@@ -109,6 +123,11 @@ impl StringBuilder {
             results: Vec::new(),
             next_id: 0,
         }
+    }
+
+    #[cfg(test)]
+    fn active_count(&self) -> usize {
+        self.active.len()
     }
 
     /// 处理一条内存访问操作（READ 或 WRITE）
@@ -253,7 +272,24 @@ impl StringBuilder {
             let id = self.next_id;
             self.next_id += 1;
             for j in 0..byte_len as u64 {
-                self.byte_owner.insert(str_start + j, id);
+                let a = str_start + j;
+                if let Some(old_id) = self.byte_owner.insert(a, id) {
+                    if old_id != id {
+                        if let Some(old) = self.active.remove(&old_id) {
+                            if old.byte_len >= MIN_CACHE_LEN {
+                                self.results.push(StringRecord {
+                                    addr: old.addr,
+                                    content: old.content,
+                                    encoding: old.encoding,
+                                    byte_len: old.byte_len,
+                                    seq: old.seq,
+                                    xref_count: 0,
+                                    rw: old.rw,
+                                });
+                            }
+                        }
+                    }
+                }
             }
             self.active.insert(id, ActiveString {
                 addr: str_start,
@@ -463,5 +499,84 @@ mod tests {
         let index = sb.finish();
         let full = index.strings.iter().find(|s| s.content == "ABCDEFGH");
         assert!(full.is_some(), "Should find concatenated 'ABCDEFGH'");
+    }
+
+    #[test]
+    fn test_sequential_writes_no_orphan_leak() {
+        let mut sb = StringBuilder::new();
+        let mut max_active = 0usize;
+        for i in 0u32..1000 {
+            let addr = 0x1000 + i as u64 * 4;
+            sb.process_access(addr, 0x41424344, 4, i, StringRw::Write);
+            let ac = sb.active_count();
+            if ac > max_active { max_active = ac; }
+        }
+        // active 中应始终只有少量活跃字符串，不应随写入次数线性增长
+        assert!(max_active < 10,
+            "active peaked at {} entries, expected < 10 (orphan leak?)", max_active);
+    }
+
+    #[test]
+    fn test_evicted_string_is_snapshotted() {
+        let mut sb = StringBuilder::new();
+        sb.process_access(0x1000, 0x44434241, 4, 100, StringRw::Write);
+        sb.process_access(0x1004, 0x48474645, 4, 200, StringRw::Write);
+        let index = sb.finish();
+        assert!(index.strings.iter().any(|s| s.content == "ABCD"),
+            "Evicted 'ABCD' should be snapshotted");
+        assert!(index.strings.iter().any(|s| s.content == "ABCDEFGH"),
+            "Final 'ABCDEFGH' should exist");
+    }
+
+    #[test]
+    fn test_paged_memory_bitset_valid() {
+        let mut mem = PagedMemory::new();
+
+        // 基本 set/get
+        mem.set_byte(0x2000, 0xAA);
+        assert_eq!(mem.get_byte(0x2000), Some(0xAA));
+        assert_eq!(mem.get_byte(0x2001), None);
+
+        // 覆盖写入
+        mem.set_byte(0x2000, 0xBB);
+        assert_eq!(mem.get_byte(0x2000), Some(0xBB));
+
+        // 跨页边界
+        mem.set_byte(0x2FFF, 0x11); // page 0x2000 最后一个字节
+        mem.set_byte(0x3000, 0x22); // page 0x3000 第一个字节
+        assert_eq!(mem.get_byte(0x2FFF), Some(0x11));
+        assert_eq!(mem.get_byte(0x3000), Some(0x22));
+        assert_eq!(mem.get_byte(0x2FFE), None);
+        assert_eq!(mem.get_byte(0x3001), None);
+
+        // 页内各 bit 位置（offset 0, 63, 64, 127, 4095）
+        let base: u64 = 0x5000;
+        for &off in &[0u64, 63, 64, 127, 4095] {
+            mem.set_byte(base + off, off as u8);
+        }
+        for &off in &[0u64, 63, 64, 127, 4095] {
+            assert_eq!(mem.get_byte(base + off), Some(off as u8),
+                "offset {} should be valid", off);
+        }
+        // 未设置的偏移仍为 None
+        assert_eq!(mem.get_byte(base + 1), None);
+        assert_eq!(mem.get_byte(base + 128), None);
+    }
+
+    #[test]
+    fn test_sequential_writes_active_bounded_at_scale() {
+        let mut sb = StringBuilder::new();
+        let mut max_active = 0usize;
+        for i in 0u32..10_000 {
+            let addr = 0x1000 + i as u64 * 4;
+            sb.process_access(addr, 0x41424344, 4, i, StringRw::Write);
+            if i % 1000 == 999 {
+                let ac = sb.active_count();
+                if ac > max_active { max_active = ac; }
+            }
+        }
+        // 即使 10K 次写入，active 也应保持有界（不随写入次数线性增长）
+        assert!(max_active < 10,
+            "active peaked at {} after 10K writes, expected < 10 (orphan leak?)", max_active);
     }
 }
