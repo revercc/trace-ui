@@ -453,7 +453,8 @@ impl StringBuilder {
                 });
             }
         }
-        self.results.sort_by_key(|r| r.seq);
+        use rayon::prelude::*;
+        self.results.par_sort_unstable_by_key(|r| r.seq);
         StringIndex { strings: self.results }
     }
 
