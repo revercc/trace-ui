@@ -100,7 +100,7 @@ export default function RegisterPanel({ selectedSeq: selectedSeqProp, isPhase2Re
   const getVal = (name: string) => regs[KEY_MAP[name] ?? name] ?? "?";
 
   return (
-    <div style={{ height: "100%", overflow: "auto", padding: 8, background: "var(--bg-primary)" }}>
+    <div style={{ height: "100%", overflow: "auto", padding: 6, background: "var(--bg-primary)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
         <span style={{ color: "var(--text-secondary)", fontSize: 11 }}>
           Registers {displaySeq !== null ? `@ #${displaySeq + 1}` : ""}

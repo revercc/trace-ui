@@ -26,7 +26,7 @@ interface Props {
 export default function StringsPanel({ sessionId, isPhase2Ready, onJumpToSeq, stringsScanning }: Props) {
   const rwCol = useResizableColumn(36, "left", 28, "strings:rw");
   const seqCol = useResizableColumn(70, "right", 40, "strings:seq");
-  const addrCol = useResizableColumn(110, "right", 50, "strings:addr");
+  const addrCol = useResizableColumn(156, "right", 50, "strings:addr");
   const encCol = useResizableColumn(56, "left", 30, "strings:enc");
   const lenCol = useResizableColumn(44, "left", 30, "strings:len");
   const xrefsCol = useResizableColumn(56, "left", 30, "strings:xrefs");

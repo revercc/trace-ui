@@ -236,7 +236,7 @@ export default function FunctionTree({
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", background: "var(--bg-primary)" }}>
       <div style={{
-        color: "var(--text-secondary)", fontSize: 11,
+        color: "var(--text-secondary)", fontSize: 13,
         padding: "6px 8px 4px", borderBottom: "1px solid var(--border-color)", flexShrink: 0,
         display: "flex", alignItems: "center", justifyContent: "space-between",
       }}>
@@ -280,7 +280,7 @@ export default function FunctionTree({
                 width: contentMinWidth > vs.containerWidth ? contentMinWidth : undefined,
                 transform: `translateY(${vs.getItemY(index)}px)`,
                 paddingLeft: row.depth * 16 + 4, paddingRight: 8,
-                cursor: "pointer", fontSize: 12, lineHeight: "22px",
+                cursor: "pointer", fontSize: 13, lineHeight: "22px",
                 whiteSpace: "nowrap",
                 background: selectedId === row.id ? "var(--bg-selected)" : "transparent",
                 display: "flex", alignItems: "center", gap: 4,

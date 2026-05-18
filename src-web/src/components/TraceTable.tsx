@@ -19,7 +19,7 @@ import { useThemeId } from "../stores/themeStore";
 import type { Preferences } from "../hooks/usePreferences";
 import { canvasDpr } from "../utils/platform";
 
-const ROW_HEIGHT = 22;
+const ROW_HEIGHT = 25;
 const ARROW_COL_WIDTH = 20;
 
 // 合并共用颜色和 TraceTable 特有颜色——每次访问动态获取当前主题颜色
@@ -27,9 +27,9 @@ function getCOLORS() { return { ...getSharedColors(), ...getTraceTableColors() }
 type ColorsType = ReturnType<typeof getCOLORS>;
 let COLORS: ColorsType = getCOLORS();
 
-const FONT = '12px "JetBrains Mono", "Fira Code", "Cascadia Code", "Consolas", monospace';
+const FONT = '14px "JetBrains Mono", "Fira Code", "Cascadia Code", "Consolas", monospace';
 const FONT_ITALIC = 'italic 12px "JetBrains Mono", "Fira Code", "Cascadia Code", "Consolas", monospace';
-const TEXT_BASELINE_Y = 15;
+const TEXT_BASELINE_Y = 18;
 
 // 列位置常量（padding 8px）
 const COL_PAD = 8;
@@ -635,7 +635,7 @@ export default function TraceTable({
   const MIN_CHANGES_WIDTH = 60;
   const maxLeftCols = Math.max(0, canvasSize.width - COL_DISASM - 2 * HANDLE_W - RIGHT_GUTTER - MIN_CHANGES_WIDTH);
   const effectiveDisasmWidth = Math.max(200, Math.min(disasmCol.width, maxLeftCols - 40));
-  const effectiveBeforeWidth = Math.max(40, Math.min(regBeforeCol.width, maxLeftCols - effectiveDisasmWidth));
+  const effectiveBeforeWidth = Math.max(80, Math.min(regBeforeCol.width, maxLeftCols - effectiveDisasmWidth));
   const colRegBefore = COL_DISASM + effectiveDisasmWidth + HANDLE_W;
   const colChanges = colRegBefore + effectiveBeforeWidth + HANDLE_W;
   const effectiveChangesWidth = Math.max(MIN_CHANGES_WIDTH, canvasSize.width - colChanges - RIGHT_GUTTER);

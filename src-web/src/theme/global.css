@@ -46,8 +46,8 @@
 
   /* ── 字体 ── */
   --font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", "Consolas", monospace;
-  --font-size-sm: 12px;
-  --font-size-base: 13px;
+  --font-size-sm: 14px;
+  --font-size-base: 15px;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }

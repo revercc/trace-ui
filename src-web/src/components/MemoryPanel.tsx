@@ -604,7 +604,7 @@ export default function MemoryPanel({ selectedSeq: selectedSeqProp, isPhase2Read
   if (!isPhase2Ready) {
     return (
       <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <span style={{ color: "var(--text-secondary)", fontSize: 12 }}></span>
+        <span style={{ color: "var(--text-secondary)", fontSize: 14 }}></span>
       </div>
     );
   }
@@ -612,7 +612,7 @@ export default function MemoryPanel({ selectedSeq: selectedSeqProp, isPhase2Read
   if (selectedSeq === null) {
     return (
       <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <span style={{ color: "var(--text-secondary)", fontSize: 12 }}></span>
+        <span style={{ color: "var(--text-secondary)", fontSize: 14 }}></span>
       </div>
     );
   }
@@ -623,7 +623,7 @@ export default function MemoryPanel({ selectedSeq: selectedSeqProp, isPhase2Read
     <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "var(--font-size-sm)", width: "100%" }}>
       {/* 左侧：history 信息 */}
       {showHistory && (
-        <span style={{ color: "var(--text-secondary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontSize: 11 }}>
+        <span style={{ color: "var(--text-secondary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontSize: 14 }}>
           {memRw && <span style={{ color: memRw === "W" ? "var(--text-hex-highlight)" : "var(--text-address)" }}>{memRw}</span>}{" "}
           <span style={{ color: "var(--text-address)" }}>{historyAddr}</span>
           {memSize ? `:${memSize}` : ""}{" "}
@@ -908,7 +908,7 @@ export default function MemoryPanel({ selectedSeq: selectedSeqProp, isPhase2Read
               <div style={{
                 padding: "3px 8px", background: "var(--bg-secondary)",
                 borderBottom: "1px solid var(--border-color)",
-                fontSize: 11, color: "var(--text-secondary)", flexShrink: 0,
+                fontSize: 12, color: "var(--text-secondary)", flexShrink: 0,
               }}>
                 Memory accesses history  Total: {historyTotal.toLocaleString()}
               </div>

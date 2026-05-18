@@ -185,8 +185,8 @@ function App() {
   // Register 面板高度：padding(16) + header(19) + 15×17(255) + gap(4) + 2×17(34) = 328px
   // 左侧面板宽度：两列寄存器 name(36) + value(~130) × 2 + gap(16) + padding(16) = 364px + 余量
   const MEMORY_PANEL_TARGET_PX = 404;
-  const REG_PANEL_TARGET_PX = 328;
-  const LEFT_PANEL_TARGET_PX = 376;
+  const REG_PANEL_TARGET_PX = 344;
+  const LEFT_PANEL_TARGET_PX = 410;
 
   const bottomPanelRef = useRef<PanelImperativeHandle>(null);
   const rightGroupRef = useRef<HTMLDivElement>(null);
@@ -1204,7 +1204,7 @@ function App() {
         padding: "2px 12px", flexShrink: 0, height: 22,
         background: "var(--bg-secondary)",
         borderTop: "1px solid var(--border-color)",
-        fontSize: 11, color: "var(--text-secondary)",
+        fontSize: 14, color: "var(--text-secondary)",
       }}>
         <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
           {isLoaded && filePath
